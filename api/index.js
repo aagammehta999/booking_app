@@ -2,16 +2,25 @@ const express = require("express");
 const cors = require("cors");
 const User = require("./models/User.js");
 const bcrypt = require("bcryptjs");
-require("dotenv").config();
+const jwt = require("jsonwebtoken");
 const mongoose = require("mongoose");
+const cookieParser = require("cookie-parser");
+
+require("dotenv").config();
 const app = express();
 
 const bcryptSalt = bcrypt.genSaltSync(12);
+const jwtSecret = "fsjkdcsdfdshduvlbvblfvvla";
 
 app.use(express.json());
+app.use(cookieParser());
 
-app.use(cors({ credentials: true, origin: "http://127.0.0.1:5173" }));
-
+app.use(
+  cors({
+    credentials: true,
+    origin: "http://localhost:5173",
+  })
+);
 mongoose.connect(process.env.MONGO_URL);
 
 // app.get("/test", (req, res) => {
@@ -19,9 +28,7 @@ mongoose.connect(process.env.MONGO_URL);
 // });
 
 app.post("/register", async (req, res) => {
-  res.header("Access-Control-Allow-Origin", "*");
   const { name, email, password } = req.body;
-  console.log(err.response.data);
 
   try {
     const userDoc = await User.create({
@@ -35,5 +42,44 @@ app.post("/register", async (req, res) => {
   }
 });
 
+app.post("/login", async (req, res) => {
+  const { email, password } = req.body;
+  const userDoc = await User.findOne({ email });
+  if (userDoc) {
+    const passOk = bcrypt.compareSync(password, userDoc.password);
+    if (passOk) {
+      jwt.sign(
+        { email: userDoc.email, id: userDoc._id },
+        jwtSecret,
+        {},
+        (err, token) => {
+          if (err) {
+            throw err;
+          }
+          res.cookie("token ", token).json("passok");
+        }
+      );
+    } else {
+      res.status(422).json("password not ok");
+    }
+    res, json("found");
+  } else {
+    res.json("not found");
+  }
+});
+
+app.get("/profile", (req, res) => {
+  const { token } = req.cookies;
+  if (token) {
+    jwt.verify(token, jwtSecret, {}, async (err, userData) => {
+      if (err) throw err;
+      const { name, email, _id } = await User.findById(userData.id);
+      res.json({ name, email, _id });
+    });
+  } else {
+    res.json(null);
+  }
+  res.json(token);
+});
 app.listen(4000);
 // lK4vKluDecHNBoNw
